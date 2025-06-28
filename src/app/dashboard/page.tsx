@@ -53,7 +53,7 @@ export default function DashboardPage() {
 
       if (!uploadResponse.ok) throw new Error('Fallimento nell-upload del file.');
       
-      const fileUrl = presignedUrl.split('?')[0]; // Otteniamo l'URL pulito del file
+      // const fileUrl = presignedUrl.split('?')[0]; // Otteniamo l'URL pulito del file
       setMessage('3/3: Upload completato. Salvataggio della programmazione...');
 
       // --- Step 3: Salvataggio dei Metadati nel Nostro Database ---
