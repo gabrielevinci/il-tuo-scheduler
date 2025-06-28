@@ -7,7 +7,7 @@ export default function HomePage() {
 
   // Definiamo l'URI a cui Meta dovrà reindirizzare l'utente dopo il login.
   // Deve corrispondere ESATTAMENTE a quello inserito nel pannello sviluppatori di Meta.
-  const redirectUri = "https://624c-93-65-240-51.ngrok-free.app/api/auth/callback";
+  const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`;
 
   // Specifichiamo i permessi (scopes) che la nostra applicazione richiede.
   // Come da documentazione, usiamo i nuovi nomi degli scope.

@@ -16,8 +16,7 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.META_APP_ID;
   const clientSecret = process.env.META_APP_SECRET;
-  // Utilizziamo l'URL ngrok anche qui per coerenza assoluta
-  const redirectUri = "https://624c-93-65-240-51.ngrok-free.app/api/auth/callback";
+  const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`;
 
   const params = new URLSearchParams();
   params.append("client_id", clientId!);
