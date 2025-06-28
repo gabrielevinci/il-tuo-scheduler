@@ -1,6 +1,6 @@
 // src/app/dashboard/page.tsx
 
-'use client'; // -> Questa direttiva è FONDAMENTALE. Rende il componente interattivo.
+'use client'; // -> Rende il componente interattivo nel browser.
 
 import { useState } from 'react';
 
@@ -57,8 +57,6 @@ export default function DashboardPage() {
       setMessage('3/3: Upload completato. Salvataggio della programmazione...');
 
       // --- Step 3: Salvataggio dei Metadati nel Nostro Database ---
-      // (Creeremo questo endpoint nel prossimo passaggio)
-      /* 
       const scheduleResponse = await fetch('/api/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,13 +68,16 @@ export default function DashboardPage() {
       });
 
       if (!scheduleResponse.ok) throw new Error('Fallimento nella programmazione del post.'); 
-      */
 
       setMessage('Successo! Il tuo video è stato programmato.');
       // Reset del form
       setFile(null);
       setCaption('');
       setScheduledAt('');
+      // Svuota l'input del file
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if(fileInput) fileInput.value = '';
+
 
     } catch (error) {
       console.error(error);
