@@ -1,0 +1,32 @@
+voglio creare un programma scritto in NextJS che poi dovro andare ad hostare su vercel collegandolo con un repo di github che mi consenta di collegare i miei account instagram e di programmare video affinche esso me li vada a pubblicare in una data e ora prestabilita usando le api di meta.
+https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/
+se visiti il sito puoi vedere scritto questo:
+<inizio sito>
+API di Instagram con accesso a Instagram
+L'API di Instagram con Instagram Login consente ai professionisti di Instagram , aziende e creator, di utilizzare la tua app per gestire la propria presenza su Instagram. L'API può essere utilizzata per:
+Instagram Media Insights è ora disponibile per l'API di Instagram con Instagram Login. Scopri di più.
+Moderazione dei commenti : gestisci e rispondi ai commenti sui tuoi media
+Pubblicazione di contenuti : ottieni e pubblica i tuoi contenuti multimediali
+Approfondimenti sui media : ottieni informazioni sui loro media
+Menzioni – Identifica i media in cui sono stati @menzionati da altri utenti di Instagram
+Messaggistica – Invia e ricevi messaggi con clienti o persone interessate al tuo account Instagram
+Nota: questa configurazione API non richiede che una pagina Facebook sia collegata all'account professionale Instagram.
+Per garantire la coerenza tra i valori di ambito e i nomi delle autorizzazioni, stiamo introducendo nuovi scopevalori per l'API di Instagram con accesso a Instagram. I nuovi scopevalori sono:
+instagram_business_basic
+instagram_business_content_publish
+instagram_business_manage_messages
+instagram_business_manage_comments
+Questi sostituiranno rispettivamente i valori business_basic, business_content_publish, business_manage_commentse esistenti business_manage_messages scope.
+Si prega di notare che i vecchi valori di ambito saranno deprecati il ​​27 gennaio 2025. È essenziale aggiornare il codice prima di questa data per evitare interruzioni nelle funzionalità dell'app. In caso contrario, l'app non sarà in grado di chiamare gli endpoint di Instagram.
+Limitazioni
+Questa configurazione API non può accedere ad annunci o tag.
+Prossimi passi
+Successivamente, leggi la Panoramica per scoprire i concetti fondamentali, i componenti e i requisiti di utilizzo di questa API.
+Vedi anche
+API di Instagram con accesso a Facebook
+Messaggistica Instagram con la piattaforma Messenger
+Account professionali Instagram
+<fine sito>
+ci tengo a precisare e che sia fondamentale il fatto che voglio utilizzare l'associazione dell'account instagram con la sua api dedicata, senza usare facebook. infatti la nuova api permette di collegare direttamente un account instagram senza che esso sia collegato ad un account facebook.
+ho la possibilità di usare cursor pro che mi aiuta nella scrittura intera del codice.
+Non so programmare e non so fare nulla quindi desidero che mi venga spiegato tutto in modo professionale come se stessi parlando con un programmatore di software professionista, il più bravo del mondo. quindi chiedo a te di guidarmi in questa impresa
