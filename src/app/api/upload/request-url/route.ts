@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
       Bucket: process.env.DO_SPACES_BUCKET!,
       Key: filename,
       ContentType: contentType,
-      ACL: 'public-read', // -> Dice a DigitalOcean di rendere il file leggibile da chiunque
     });
 
     const url = await getSignedUrl(s3Client, command, { expiresIn: 600 });
