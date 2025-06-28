@@ -45,15 +45,19 @@ export default function DashboardPage() {
       setMessage('2/3: Autorizzazione ricevuta. Caricamento del file su DigitalOcean...');
 
       // --- Step 2: Upload Diretto del File a DigitalOcean ---
+      // Aggiungiamo l'header 'x-amz-acl' per rendere il file pubblico.
       const uploadResponse = await fetch(presignedUrl, {
         method: 'PUT',
         body: file,
-        headers: { 'Content-Type': file.type },
+        headers: { 
+          'Content-Type': file.type,
+          'x-amz-acl': 'public-read' // <-- LA SOLUZIONE CORRETTA
+        },
       });
 
       if (!uploadResponse.ok) throw new Error('Fallimento nell-upload del file.');
       
-      const fileUrl = presignedUrl.split('?')[0]; // Otteniamo l'URL pulito del file
+      const fileUrl = presignedUrl.split('?')[0];
       setMessage('3/3: Upload completato. Salvataggio della programmazione...');
 
       // --- Step 3: Salvataggio dei Metadati nel Nostro Database ---
@@ -74,10 +78,8 @@ export default function DashboardPage() {
       setFile(null);
       setCaption('');
       setScheduledAt('');
-      // Svuota l'input del file
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if(fileInput) fileInput.value = '';
-
 
     } catch (error) {
       console.error(error);
@@ -103,7 +105,7 @@ export default function DashboardPage() {
             <input
               id="file-upload"
               type="file"
-              accept="video/mp4,video/quicktime" // Limitiamo ai formati video comuni
+              accept="video/mp4,video/quicktime"
               onChange={handleFileChange}
               className="block w-full text-sm text-gray-400 file:mr-4 file:rounded-md file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700"
               disabled={isUploading}
