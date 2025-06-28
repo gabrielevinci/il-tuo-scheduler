@@ -14,27 +14,23 @@ const s3Client = new S3Client({
   },
 });
 
-// Questa funzione gestisce le richieste POST al nostro endpoint
 export async function POST(request: NextRequest) {
   try {
-    // Estraiamo il nome e il tipo del file dalla richiesta del frontend
     const { filename, contentType } = await request.json();
 
     if (!filename || !contentType) {
       return NextResponse.json({ error: 'Nome del file o tipo mancanti.' }, { status: 400 });
     }
 
-    // Creiamo un comando per dire a S3 cosa vogliamo fare
     const command = new PutObjectCommand({
       Bucket: process.env.DO_SPACES_BUCKET!,
-      Key: filename, // Il nome che il file avrà su DigitalOcean
+      Key: filename,
       ContentType: contentType,
+      ACL: 'public-read', // -> Dice a DigitalOcean di rendere il file leggibile da chiunque
     });
 
-    // Generiamo l'URL "presigned" che è valido per 10 minuti
     const url = await getSignedUrl(s3Client, command, { expiresIn: 600 });
 
-    // Restituiamo l'URL al frontend
     return NextResponse.json({ url });
 
   } catch (error) {
