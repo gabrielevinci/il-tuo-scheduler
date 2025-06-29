@@ -1,23 +1,29 @@
-// src/app/api/cron/route.ts -> VERSIONE FINALE CON CONTROLLO ESPLICITO DEL TEMPO
+// src/app/api/cron/route.ts -> VERSIONE FINALE CON WORKAROUND (ID - 1)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 
-// --- Funzione per pubblicare un singolo video (INVARIATA) ---
 async function publishInstagramVideo(
   igUserId: string,
   accessToken: string,
   videoUrl: string,
   caption: string
 ) {
-  // Step 1: Creare il container
-  const createContainerUrl = `https://graph.instagram.com/${igUserId}/video_reels`;
+  // --- WORKAROUND ANOMALO ---
+  // Convertiamo l'ID in un BigInt per eseguire la sottrazione in modo sicuro
+  // e poi lo riconvertiamo in stringa per l'API.
+  const correctedIgUserId = (BigInt(igUserId) - BigInt(1)).toString();
+  console.log(`Applicato workaround: ID originale ${igUserId}, ID corretto inviato ${correctedIgUserId}`);
+
+  // Step 1: Creare il container usando l'ID corretto
+  const createContainerUrl = `https://graph.instagram.com/${correctedIgUserId}/video_reels`;
   const createContainerParams = new URLSearchParams({
     media_type: 'REELS',
     video_url: videoUrl,
     caption: caption,
     access_token: accessToken,
   });
+
   const createResponse = await fetch(createContainerUrl, { method: 'POST', body: createContainerParams });
   const createData = await createResponse.json();
   if (!createResponse.ok) {
@@ -28,10 +34,10 @@ async function publishInstagramVideo(
   if (!creationId) throw new Error('ID di creazione non ricevuto da Meta.');
   console.log(`Container creato con ID: ${creationId}.`);
 
-  // Step 2: Controllare lo stato
+  // Step 2: Controllare lo stato (la logica rimane invariata)
   let status = 'IN_PROGRESS';
   let attempts = 0;
-  const maxAttempts = 12; // Attendi al massimo 1 minuto
+  const maxAttempts = 12;
   while (status === 'IN_PROGRESS' && attempts < maxAttempts) {
     console.log(`Controllo stato container... Tentativo ${attempts + 1}`);
     await new Promise(resolve => setTimeout(resolve, 5000));
@@ -48,8 +54,8 @@ async function publishInstagramVideo(
   if (status !== 'FINISHED') throw new Error(`Timeout: Il container non è passato allo stato FINISHED.`);
   console.log('Container pronto per la pubblicazione.');
 
-  // Step 3: Pubblicare il container
-  const publishUrl = `https://graph.instagram.com/${igUserId}/media_publish`;
+  // Step 3: Pubblicare il container usando l'ID corretto
+  const publishUrl = `https://graph.instagram.com/${correctedIgUserId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: creationId,
     access_token: accessToken,
@@ -63,7 +69,7 @@ async function publishInstagramVideo(
   return publishResponse.json();
 }
 
-// --- L'Handler principale per la richiesta GET del Cron Job ---
+// --- L'Handler principale per la richiesta GET del Cron Job (INVARIATO) ---
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -71,11 +77,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // --- LA MODIFICA CHIAVE ---
-    // 1. Generiamo l'ora corrente UTC nel nostro codice.
     const now_utc = new Date().toISOString();
-    
-    // 2. Passiamo l'ora come parametro alla query.
     const postsToPublish = await sql`
       SELECT
         sp.id,
@@ -92,7 +94,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Nessun post da pubblicare.' });
     }
 
-    // Il resto della logica rimane identico...
     for (const post of postsToPublish.rows) {
       try {
         console.log(`Tentativo di pubblicare il post ID: ${post.id}`);
