@@ -1,6 +1,5 @@
 // src/app/page.tsx -> VERSIONE FINALE CON SCOPE DI PERMESSI COMPLETO
 
-import Link from 'next/link';
 
 export default function HomePage() {
   // Leggiamo l'ID della nostra App Meta in modo sicuro
