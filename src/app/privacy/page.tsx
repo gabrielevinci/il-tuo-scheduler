@@ -1,4 +1,4 @@
-// src/app/privacy/page.tsx
+// src/app/privacy/page.tsx -> VERSIONE CORRETTA CON HTML ESCAPED
 
 export default function PrivacyPolicyPage() {
   return (
@@ -11,7 +11,7 @@ export default function PrivacyPolicyPage() {
 
         <h2>1. Introduzione</h2>
         <p>
-          Benvenuto/a nell'informativa sulla privacy di MioSchedulerNextJS ("l'Applicazione").
+          Benvenuto/a nell'informativa sulla privacy di MioSchedulerNextJS (l'Applicazione).
           Questa applicazione ti consente di collegare il tuo account Instagram per programmare e pubblicare
           contenuti video. La tua privacy è importante per noi. Questa informativa spiega quali dati raccogliamo
           e come li utilizziamo.
@@ -54,16 +54,16 @@ export default function PrivacyPolicyPage() {
           Adottiamo misure di sicurezza standard del settore per proteggere i tuoi dati da accessi non autorizzati.
           I token di accesso sono trattati come dati sensibili.
         </p>
-
+        
         <h2>5. Condivisione dei Dati</h2>
         <p>
           Non condividiamo, vendiamo, noleggiamo o scambiamo i tuoi dati con terze parti per scopi di marketing o
           altri scopi. I dati vengono utilizzati solo per le interazioni necessarie con le API di Meta.
         </p>
-        
+
         <h2>6. Contatti</h2>
         <p>
-          Per qualsiasi domanda relativa a questa informativa sulla privacy, puoi contattarci all'indirizzo gabriele2019vinci@gmail.com.
+          Per qualsiasi domanda relativa a questa informativa sulla privacy, puoi contattarci all'indirizzo [gabriele2019vinci@gmail.com].
         </p>
       </div>
     </main>
