@@ -3,16 +3,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link'; // -> IMPORTIAMO IL COMPONENTE LINK
+import Link from 'next/link';
 
-// ... (L'interfaccia InstagramAccount rimane la stessa)
 interface InstagramAccount {
   id: number;
   instagram_user_id: string;
 }
 
 export default function DashboardPage() {
-  // ... (Tutti gli useState rimangono gli stessi)
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
@@ -34,14 +32,13 @@ export default function DashboardPage() {
         } else {
           setMessage('Sessione non valida o scaduta. Per favore, ricollega un account.');
         }
-      } catch { // -> RIMOSSA LA VARIABILE 'error'
+      } catch {
         setMessage('Impossibile caricare gli account. Verifica la connessione.');
       }
     }
     fetchAccounts();
   }, []);
 
-  // ... (La funzione handleFileChange rimane la stessa)
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
@@ -49,16 +46,18 @@ export default function DashboardPage() {
     }
   };
 
-  // ... (La funzione handleSubmit rimane la stessa)
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!file || !caption || !scheduledAt || !selectedAccountId) {
       setMessage('Per favore, seleziona un account e compila tutti i campi.');
       return;
     }
+
     setIsProcessing(true);
     setMessage('Inizio del processo...');
+
     try {
+      // ... (Step 1 e 2 per l'upload rimangono invariati)
       setMessage('1/3: Richiesta autorizzazione...');
       const urlResponse = await fetch('/api/upload/request-url', {
         method: 'POST',
@@ -67,6 +66,7 @@ export default function DashboardPage() {
       });
       if (!urlResponse.ok) throw new Error('Fallimento richiesta URL di upload.');
       const { url: presignedUrl } = await urlResponse.json();
+
       setMessage('2/3: Caricamento del file...');
       const uploadResponse = await fetch(presignedUrl, {
         method: 'PUT',
@@ -74,23 +74,32 @@ export default function DashboardPage() {
         headers: { 'Content-Type': file.type, 'x-amz-acl': 'public-read' },
       });
       if (!uploadResponse.ok) throw new Error('Fallimento upload file.');
+      
       const fileUrl = presignedUrl.split('?')[0];
       setMessage('3/3: Salvataggio programmazione...');
+
+      // --- LA MODIFICA CHIAVE ---
+      // Convertiamo l'ora locale in una stringa UTC standard QUI, nel frontend.
+      const scheduledAtUTC = new Date(scheduledAt).toISOString();
+
+      // Step 3: Inviamo l'ora già convertita in UTC al backend
       const scheduleResponse = await fetch('/api/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoUrl: fileUrl,
           caption,
-          scheduledAt,
+          scheduledAt: scheduledAtUTC, // Inviamo la stringa UTC
           accountId: Number(selectedAccountId),
         }),
       });
       if (!scheduleResponse.ok) throw new Error('Fallimento programmazione post.');
+
       setMessage('Successo! Il tuo video è stato programmato.');
       setFile(null); setCaption(''); setScheduledAt(''); setSelectedAccountId('');
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
+
     } catch (error) {
       console.error(error);
       setMessage(`Errore: ${error instanceof Error ? error.message : 'Si è verificato un problema.'}`);
@@ -99,13 +108,10 @@ export default function DashboardPage() {
     }
   };
 
-
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-900 p-8 text-white">
       <div className="w-full max-w-2xl rounded-lg bg-gray-800 p-8 shadow-2xl">
         <h1 className="mb-6 text-center text-3xl font-bold">Programma un Nuovo Video</h1>
-        
-        {/* ... (Il selettore dell'account rimane lo stesso) ... */}
         <div className="mb-6">
             <label htmlFor="account-select" className="mb-2 block font-semibold text-gray-300">Scegli un Account</label>
             <select id="account-select" value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)}
@@ -119,9 +125,7 @@ export default function DashboardPage() {
                 ))}
             </select>
         </div>
-        
         <form onSubmit={handleSubmit} className="space-y-6">
-            {/* ... (Tutti gli input del form rimangono gli stessi) ... */}
             <div>
                 <label htmlFor="file-upload" className="mb-2 block font-semibold text-gray-300">Video da Caricare</label>
                 <input id="file-upload" type="file" accept="video/mp4,video/quicktime" onChange={handleFileChange}
@@ -146,11 +150,8 @@ export default function DashboardPage() {
                 {isProcessing ? 'Elaborazione...' : 'Programma Video'}
             </button>
         </form>
-
         {message && (<p className="mt-6 text-center font-semibold text-gray-300">{message}</p>)}
-        
         <div className="mt-8 border-t border-gray-700 pt-6 text-center">
-             {/* SOSTITUIAMO <a> CON <Link> */}
              <Link href="/" className="text-blue-400 hover:text-blue-500">
                 Collega un altro account Instagram
              </Link>
