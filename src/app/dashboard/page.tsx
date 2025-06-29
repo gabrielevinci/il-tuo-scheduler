@@ -1,162 +1,84 @@
-// src/app/dashboard/page.tsx
+// src/app/dashboard/page.tsx -> VERSIONE MULTI-ACCOUNT
 
-'use client'; // -> Rende il componente interattivo nel browser.
+'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+interface InstagramAccount {
+  id: number;
+  instagram_user_id: string;
+}
 
 export default function DashboardPage() {
-  // Stati per gestire i dati del form e lo stato di caricamento
+  const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  
+  // ... (gli altri stati per file, caption, etc. rimangono gli stessi)
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Gestore per la selezione del file
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setFile(event.target.files[0]);
-    }
-  };
 
-  // Funzione principale che gestisce il submit del form
+  useEffect(() => {
+    // Carica gli account collegati quando il componente viene montato
+    async function fetchAccounts() {
+      const response = await fetch('/api/accounts');
+      if (response.ok) {
+        const data = await response.json();
+        setAccounts(data);
+      }
+    }
+    fetchAccounts();
+  }, []);
+  
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); // Impedisce al form di ricaricare la pagina
-    if (!file || !caption || !scheduledAt) {
-      setMessage('Per favore, compila tutti i campi.');
+    event.preventDefault();
+    // Aggiungiamo un controllo per l'account selezionato
+    if (!file || !caption || !scheduledAt || !selectedAccountId) {
+      setMessage('Per favore, seleziona un account e compila tutti i campi.');
       return;
     }
-
-    setIsUploading(true);
-    setMessage('Inizio del processo di upload...');
-
-    try {
-      // --- Step 1: Richiesta dell'URL di Upload Sicuro ---
-      setMessage('1/3: Richiesta autorizzazione per l-upload...');
-      const urlResponse = await fetch('/api/upload/request-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name, contentType: file.type }),
-      });
-
-      if (!urlResponse.ok) throw new Error('Fallimento nella richiesta dell-URL di upload.');
-
-      const { url: presignedUrl } = await urlResponse.json();
-      setMessage('2/3: Autorizzazione ricevuta. Caricamento del file su DigitalOcean...');
-
-      // --- Step 2: Upload Diretto del File a DigitalOcean ---
-      // Aggiungiamo l'header 'x-amz-acl' per rendere il file pubblico.
-      const uploadResponse = await fetch(presignedUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 
-          'Content-Type': file.type,
-          'x-amz-acl': 'public-read' // <-- LA SOLUZIONE CORRETTA
-        },
-      });
-
-      if (!uploadResponse.ok) throw new Error('Fallimento nell-upload del file.');
-      
-      const fileUrl = presignedUrl.split('?')[0];
-      setMessage('3/3: Upload completato. Salvataggio della programmazione...');
-
-      // --- Step 3: Salvataggio dei Metadati nel Nostro Database ---
-      const scheduleResponse = await fetch('/api/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoUrl: fileUrl,
-          caption: caption,
-          scheduledAt: new Date(scheduledAt).toISOString(),
-        }),
-      });
-
-      if (!scheduleResponse.ok) throw new Error('Fallimento nella programmazione del post.'); 
-
-      setMessage('Successo! Il tuo video è stato programmato.');
-      // Reset del form
-      setFile(null);
-      setCaption('');
-      setScheduledAt('');
-      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-      if(fileInput) fileInput.value = '';
-
-    } catch (error) {
-      console.error(error);
-      setMessage(`Errore: ${error instanceof Error ? error.message : 'Si è verificato un problema.'}`);
-    } finally {
-      setIsUploading(false);
-    }
+    // ... (il resto della logica di handleSubmit rimane quasi identico)
+    // La chiamata a /api/schedule dovrà essere aggiornata
   };
+
+  // ... (Il resto del JSX va qui, con l'aggiunta del selettore account)
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-900 p-8 text-white">
       <div className="w-full max-w-2xl rounded-lg bg-gray-800 p-8 shadow-2xl">
-        <h1 className="mb-6 text-center text-3xl font-bold">
-          Programma un Nuovo Video
-        </h1>
-
+        <h1 className="mb-6 text-center text-3xl font-bold">Programma un Nuovo Video</h1>
+        
+        {/* --- NUOVO SELETTORE ACCOUNT --- */}
+        <div className="mb-6">
+            <label htmlFor="account-select" className="mb-2 block font-semibold text-gray-300">
+                Scegli un Account
+            </label>
+            <select 
+                id="account-select"
+                value={selectedAccountId ?? ''}
+                onChange={(e) => setSelectedAccountId(Number(e.target.value))}
+                className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:border-blue-500 focus:ring-blue-500"
+            >
+                <option value="" disabled>Seleziona...</option>
+                {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                        Account ID: {acc.instagram_user_id}
+                    </option>
+                ))}
+            </select>
+        </div>
+        
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Selettore File */}
-          <div>
-            <label htmlFor="file-upload" className="mb-2 block font-semibold text-gray-300">
-              Video da Caricare
-            </label>
-            <input
-              id="file-upload"
-              type="file"
-              accept="video/mp4,video/quicktime"
-              onChange={handleFileChange}
-              className="block w-full text-sm text-gray-400 file:mr-4 file:rounded-md file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700"
-              disabled={isUploading}
-            />
-          </div>
-
-          {/* Didascalia */}
-          <div>
-            <label htmlFor="caption" className="mb-2 block font-semibold text-gray-300">
-              Didascalia
-            </label>
-            <textarea
-              id="caption"
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:border-blue-500 focus:ring-blue-500"
-              rows={4}
-              placeholder="Scrivi qui la tua didascalia..."
-              disabled={isUploading}
-            />
-          </div>
-
-          {/* Selettore Data e Ora */}
-          <div>
-            <label htmlFor="scheduledAt" className="mb-2 block font-semibold text-gray-300">
-              Data e Ora di Pubblicazione
-            </label>
-            <input
-              id="scheduledAt"
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className="w-full rounded-md border-gray-600 bg-gray-700 p-3 text-white focus:border-blue-500 focus:ring-blue-500"
-              disabled={isUploading}
-            />
-          </div>
-
-          {/* Pulsante di Submit */}
-          <button
-            type="submit"
-            className="w-full rounded-md bg-green-600 px-8 py-3 text-lg font-semibold text-white shadow-md transition-transform duration-200 hover:scale-105 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:bg-gray-500"
-            disabled={isUploading}
-          >
-            {isUploading ? 'Programmazione in corso...' : 'Programma Video'}
-          </button>
+            {/* ... (tutti gli altri input del form: file, caption, datetime) ... */}
         </form>
 
-        {/* Messaggi di Stato */}
-        {message && (
-          <p className="mt-6 text-center font-semibold text-gray-300">{message}</p>
-        )}
+        {/* Aggiungi un pulsante per collegare altri account */}
+        <div className="mt-8 border-t border-gray-700 pt-6 text-center">
+             <a href="/" className="text-blue-400 hover:text-blue-500">Collega un altro account Instagram</a>
+        </div>
       </div>
     </main>
   );
