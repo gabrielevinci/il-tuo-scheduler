@@ -1,47 +1,20 @@
-// src/app/api/cron/route.ts -> VERSIONE PROFESSIONALE CON RETRY LOGIC
+// src/app/api/cron/route.ts -> VERSIONE FINALE E PROFESSIONALE CON PRE-VERIFICA
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 
-// --- Funzione helper per eseguire fetch con logica di retry ---
-async function fetchWithRetry(
-    url: string,
-    options: RequestInit,
-    maxRetries = 3
-) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const response = await fetch(url, options);
-            const data = await response.json();
-
-            if (response.ok) {
-                return data; // Successo, restituisci i dati
-            }
-            
-            // Controlla se l'errore è transitorio
-            if (data.error?.is_transient) {
-                if (attempt === maxRetries) {
-                    // Ultimo tentativo fallito, lancia l'errore
-                    throw new Error(`Errore transitorio dopo ${maxRetries} tentativi: ${JSON.stringify(data.error)}`);
-                }
-                // Calcola l'attesa esponenziale (2s, 4s, 8s) e riprova
-                const delay = Math.pow(2, attempt) * 1000;
-                console.log(`Errore transitorio rilevato. Tentativo ${attempt}/${maxRetries}. Riprovo tra ${delay / 1000}s...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            } else {
-                // Errore non transitorio, fallisci immediatamente
-                throw new Error(`Errore non transitorio: ${JSON.stringify(data.error)}`);
-            }
-
-        } catch (error) {
-            if (attempt === maxRetries) {
-                // Se anche un errore di rete avviene all'ultimo tentativo, lancia l'errore
-                throw error;
-            }
-        }
+// --- Funzione helper per verificare se un URL è accessibile ---
+async function verifyUrlIsAccessible(url: string): Promise<boolean> {
+    try {
+        // Usiamo una richiesta HEAD che è più leggera di GET. Vogliamo solo sapere se il file esiste.
+        const response = await fetch(url, { method: 'HEAD' });
+        // Se lo status è 200 OK, l'URL è pronto.
+        return response.ok;
+    } catch (error) {
+        // In caso di errore di rete, l'URL non è pronto.
+        console.error(`Errore di rete durante la verifica dell'URL ${url}:`, error);
+        return false;
     }
-    // Non dovrebbe mai arrivare qui, ma per sicurezza...
-    throw new Error('Impossibile completare la richiesta dopo i tentativi.');
 }
 
 
@@ -52,32 +25,33 @@ async function publishInstagramVideo(
   videoUrl: string,
   caption: string
 ) {
-  // Step 1: Creare il container usando la nostra nuova funzione resiliente
+  // Step 1: Creare il container
   const createContainerUrl = `https://graph.instagram.com/${igUserId}/media`;
   const createContainerParams = new URLSearchParams({
     media_type: 'REELS',
     video_url: videoUrl,
     caption: caption,
     access_token: accessToken,
-  }).toString();
-  
-  console.log(`Richiesta creazione container a: ${createContainerUrl}`);
-  const createData = await fetchWithRetry(`${createContainerUrl}?${createContainerParams}`, { method: 'POST' });
+  });
+
+  const createResponse = await fetch(`${createContainerUrl}?${createContainerParams}`, { method: 'POST' });
+  const createData = await createResponse.json();
+
+  if (!createResponse.ok) {
+    throw new Error(`Errore nella creazione del container: ${JSON.stringify(createData.error)}`);
+  }
 
   const creationId = createData.id;
   if (!creationId) throw new Error('ID di creazione non ricevuto da Meta.');
   console.log(`Container creato con ID: ${creationId}.`);
-  
-  // Step 2: Controllare lo stato (con una pausa iniziale)
-  await new Promise(resolve => setTimeout(resolve, 3000)); // Pausa iniziale di 3s
+
+  // Step 2: Controllare lo stato del caricamento
   let status = 'IN_PROGRESS';
   let attempts = 0;
   const maxAttempts = 12;
 
   while (status === 'IN_PROGRESS' && attempts < maxAttempts) {
-    console.log(`Controllo stato container... Tentativo ${attempts + 1}`);
     await new Promise(resolve => setTimeout(resolve, 5000));
-    
     const statusUrl = `https://graph.instagram.com/${creationId}?fields=status_code&access_token=${accessToken}`;
     const statusResponse = await fetch(statusUrl);
     const statusData = await statusResponse.json();
@@ -93,13 +67,17 @@ async function publishInstagramVideo(
   // Step 3: Pubblicare il container
   const publishUrl = `https://graph.instagram.com/${igUserId}/media_publish`;
   const publishParams = new URLSearchParams({ creation_id: creationId, access_token: accessToken });
-  const publishData = await fetchWithRetry(publishUrl, { method: 'POST', body: publishParams });
+  const publishResponse = await fetch(publishUrl, { method: 'POST', body: publishParams });
 
-  return publishData;
+  if (!publishResponse.ok) {
+      const publishData = await publishResponse.json();
+      throw new Error(`Errore nella pubblicazione del media: ${JSON.stringify(publishData.error)}`);
+  }
+  return publishResponse.json();
 }
 
 
-// --- L'Handler principale per il Cron Job (INVARIATO) ---
+// --- L'Handler principale per il Cron Job ---
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -113,8 +91,19 @@ export async function GET(request: NextRequest) {
       WHERE sp.status = 'PENDING' AND sp.scheduled_at <= NOW();
     `;
     if (postsToPublish.rowCount === 0) return NextResponse.json({ message: 'Nessun post da pubblicare.' });
+
     for (const post of postsToPublish.rows) {
       try {
+        // --- PRE-VERIFICA DI ACCESSIBILITÀ DELL'URL ---
+        console.log(`Verifica URL per post ID: ${post.id}...`);
+        const isUrlReady = await verifyUrlIsAccessible(post.video_url);
+        if (!isUrlReady) {
+            console.log(`URL per post ID: ${post.id} non ancora pronto. Riprovo al prossimo ciclo.`);
+            continue; // Salta questo post e passa al prossimo, senza segnarlo come fallito.
+        }
+        console.log(`URL per post ID: ${post.id} verificato con successo.`);
+
+        // Se l'URL è pronto, procedi con la pubblicazione
         console.log(`Tentativo di pubblicare il post ID: ${post.id}`);
         await publishInstagramVideo(post.instagram_user_id, post.access_token, post.video_url, post.caption);
         await sql`UPDATE scheduled_posts SET status = 'PUBLISHED' WHERE id = ${post.id};`;
@@ -124,7 +113,7 @@ export async function GET(request: NextRequest) {
         await sql`UPDATE scheduled_posts SET status = 'FAILED' WHERE id = ${post.id};`;
       }
     }
-    return NextResponse.json({ success: true, published_count: postsToPublish.rowCount });
+    return NextResponse.json({ success: true, processed_count: postsToPublish.rowCount });
   } catch (error) {
     console.error('Errore generale nel Cron Job:', error);
     return new NextResponse('Errore interno del server', { status: 500 });
