@@ -1,29 +1,30 @@
-// src/app/api/cron/route.ts
+// src/app/api/cron/route.ts -> VERSIONE FINALE CON ENDPOINT CORRETTI
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 
 // --- Funzione per pubblicare un singolo video ---
-// Separiamo la logica in una funzione per mantenere il codice pulito
 async function publishInstagramVideo(
   igUserId: string,
   accessToken: string,
   videoUrl: string,
   caption: string
 ) {
-  // Step 1: Creare il container per il media
-  const createContainerUrl = `https://graph.facebook.com/v20.0/${igUserId}/media`;
+  // Step 1: Creare il container per il media (usando graph.instagram.com)
+  const createContainerUrl = `https://graph.instagram.com/${igUserId}/media`;
   const createContainerParams = new URLSearchParams({
-    media_type: 'REELS', // O 'VIDEO' se preferisci per il feed
+    media_type: 'REELS',
     video_url: videoUrl,
     caption: caption,
     access_token: accessToken,
   });
 
-  const createResponse = await fetch(`${createContainerUrl}?${createContainerParams}`);
+  const createResponse = await fetch(`${createContainerUrl}?${createContainerParams}`, { method: 'POST' });
   const createData = await createResponse.json();
 
   if (!createResponse.ok) {
+    // Aggiungiamo un log più dettagliato
+    console.error("Dettagli Errore Creazione Container:", createData);
     throw new Error(`Errore nella creazione del container: ${JSON.stringify(createData.error)}`);
   }
 
@@ -31,32 +32,51 @@ async function publishInstagramVideo(
   if (!creationId) {
     throw new Error('ID di creazione non ricevuto da Meta.');
   }
+  console.log(`Container creato con ID: ${creationId}`);
 
   // Step 2: Controllare lo stato del caricamento del container
   let status = 'IN_PROGRESS';
-  while (status === 'IN_PROGRESS') {
+  let attempts = 0;
+  const maxAttempts = 12; // Attendi al massimo per un minuto (12 * 5 secondi)
+
+  while (status === 'IN_PROGRESS' && attempts < maxAttempts) {
+    console.log(`Controllo stato container... Tentativo ${attempts + 1}`);
     await new Promise(resolve => setTimeout(resolve, 5000)); // Attendi 5 secondi
-    const statusUrl = `https://graph.facebook.com/v20.0/${creationId}?fields=status_code&access_token=${accessToken}`;
+    
+    // Anche questo controllo usa graph.instagram.com
+    const statusUrl = `https://graph.instagram.com/${creationId}?fields=status_code&access_token=${accessToken}`;
     const statusResponse = await fetch(statusUrl);
     const statusData = await statusResponse.json();
     status = statusData.status_code;
 
     if (status === 'ERROR') {
+      console.error("Dettagli Errore Stato Container:", statusData);
       throw new Error(`Errore durante il caricamento del media su Instagram: ${JSON.stringify(statusData)}`);
     }
+    attempts++;
   }
 
-  // Step 3: Pubblicare il container
-  const publishUrl = `https://graph.facebook.com/v20.0/${igUserId}/media_publish`;
+  if (status !== 'FINISHED') {
+      throw new Error(`Timeout: Il container non è passato allo stato FINISHED dopo ${attempts * 5} secondi.`);
+  }
+  
+  console.log('Container pronto per la pubblicazione.');
+
+  // Step 3: Pubblicare il container (usando graph.instagram.com)
+  const publishUrl = `https://graph.instagram.com/${igUserId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: creationId,
     access_token: accessToken,
   });
 
-  const publishResponse = await fetch(`${publishUrl}?${publishParams}`, { method: 'POST' });
+  const publishResponse = await fetch(`${publishUrl}`, { 
+      method: 'POST',
+      body: publishParams
+  });
   
   if (!publishResponse.ok) {
       const publishData = await publishResponse.json();
+      console.error("Dettagli Errore Pubblicazione:", publishData);
       throw new Error(`Errore nella pubblicazione del media: ${JSON.stringify(publishData.error)}`);
   }
 
@@ -66,14 +86,12 @@ async function publishInstagramVideo(
 
 // --- L'Handler principale per la richiesta GET del Cron Job ---
 export async function GET(request: NextRequest) {
-  // Sicurezza: Controlla un "segreto" per assicurarti che la richiesta provenga da Vercel
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
   try {
-    // 1. Trova i post pronti per essere pubblicati
     const postsToPublish = await sql`
       SELECT
         sp.id,
@@ -90,7 +108,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Nessun post da pubblicare.' });
     }
 
-    // 2. Itera su ogni post e tenta la pubblicazione
     for (const post of postsToPublish.rows) {
       try {
         console.log(`Tentativo di pubblicare il post ID: ${post.id}`);
@@ -101,7 +118,6 @@ export async function GET(request: NextRequest) {
           post.caption
         );
 
-        // Se la pubblicazione va a buon fine, aggiorna lo stato nel DB
         await sql`
           UPDATE scheduled_posts SET status = 'PUBLISHED' WHERE id = ${post.id};
         `;
@@ -109,7 +125,6 @@ export async function GET(request: NextRequest) {
 
       } catch (publishError) {
         console.error(`Fallimento nella pubblicazione del post ID: ${post.id}`, publishError);
-        // Se la pubblicazione fallisce, aggiorna lo stato a 'FAILED' per non riprovare
         await sql`
           UPDATE scheduled_posts SET status = 'FAILED' WHERE id = ${post.id};
         `;
