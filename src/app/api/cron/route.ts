@@ -1,16 +1,20 @@
-// src/app/api/cron/route.ts -> VERSIONE FINALE CON API VERSION CONFIGURABILE
+// src/app/api/cron/route.ts -> VERSIONE FINALE CON GESTIONE DEGLI ID COME STRINGHE
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 
+// Assicuriamo che TypeScript tratti sempre l'ID come una stringa
 async function publishInstagramVideo(
-  igUserId: string,
+  igUserId: string, // Tipo esplicito: string
   accessToken: string,
   videoUrl: string,
   caption: string
 ) {
-  // Usiamo la versione dell'API dalle variabili d'ambiente
-  const apiVersion = process.env.META_API_VERSION || 'v20.0'; // Fallback a v20.0 per sicurezza
+  // Rimuoviamo il workaround precedente, era un sintomo e non la cura.
+  // L'ID utente viene ora usato così com'è, come una stringa.
+  console.log(`Utilizzo l'ID utente come stringa: ${igUserId}`);
+
+  const apiVersion = process.env.META_API_VERSION || 'v23.0';
 
   // Step 1: Creare il container
   const createContainerUrl = `https://graph.instagram.com/${apiVersion}/${igUserId}/video_reels`;
@@ -28,12 +32,11 @@ async function publishInstagramVideo(
     console.error("Dettagli Errore Creazione Container:", createData);
     throw new Error(`Errore nella creazione del container: ${JSON.stringify(createData.error)}`);
   }
-
   const creationId = createData.id;
   if (!creationId) throw new Error('ID di creazione non ricevuto da Meta.');
   console.log(`Container creato con ID: ${creationId}.`);
 
-  // Step 2: Controllare lo stato
+  // Step 2: Controllare lo stato del caricamento
   let status = 'IN_PROGRESS';
   let attempts = 0;
   const maxAttempts = 12;
@@ -45,7 +48,7 @@ async function publishInstagramVideo(
     const statusResponse = await fetch(statusUrl);
     const statusData = await statusResponse.json();
     status = statusData.status_code;
-
+    
     if (status === 'ERROR') {
       console.error("Dettagli Errore Stato Container:", statusData);
       throw new Error(`Errore durante il caricamento del media: ${JSON.stringify(statusData)}`);
@@ -70,7 +73,7 @@ async function publishInstagramVideo(
   return publishResponse.json();
 }
 
-// --- L'Handler principale per la richiesta GET del Cron Job (INVARIATO) ---
+// --- L'Handler principale per la richiesta GET del Cron Job ---
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -79,6 +82,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const now_utc = new Date().toISOString();
+    
+    // La libreria @vercel/postgres è intelligente e rispetta i tipi del DB.
+    // Poiché instagram_user_id è VARCHAR, verrà restituito come stringa.
     const postsToPublish = await sql`
       SELECT
         sp.id,
@@ -98,6 +104,7 @@ export async function GET(request: NextRequest) {
     for (const post of postsToPublish.rows) {
       try {
         console.log(`Tentativo di pubblicare il post ID: ${post.id}`);
+        // Passiamo l'ID direttamente come stringa, come ricevuto dal database.
         await publishInstagramVideo(
           post.instagram_user_id,
           post.access_token,
