@@ -1,4 +1,4 @@
-// src/app/api/cron/route.ts -> VERSIONE FINALE CON PAUSA STRATEGICA
+// src/app/api/cron/route.ts -> VERSIONE FINALE CON ENDPOINT DEDICATO PER REELS
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -10,16 +10,19 @@ async function publishInstagramVideo(
   videoUrl: string,
   caption: string
 ) {
-  // Step 1: Creare il container per il media
-  const createContainerUrl = `https://graph.instagram.com/${igUserId}/media`;
+  // Step 1: Creare il container per il media (usando l'endpoint specifico per REELS)
+  const createContainerUrl = `https://graph.instagram.com/${igUserId}/video_reels`;
   const createContainerParams = new URLSearchParams({
-    media_type: 'REELS',
+    media_type: 'REELS', // Questo parametro è ancora richiesto dall'endpoint /video_reels
     video_url: videoUrl,
     caption: caption,
     access_token: accessToken,
   });
 
-  const createResponse = await fetch(`${createContainerUrl}?${createContainerParams}`, { method: 'POST' });
+  const createResponse = await fetch(createContainerUrl, { 
+    method: 'POST',
+    body: createContainerParams
+  });
   const createData = await createResponse.json();
 
   if (!createResponse.ok) {
@@ -31,10 +34,7 @@ async function publishInstagramVideo(
   if (!creationId) {
     throw new Error('ID di creazione non ricevuto da Meta.');
   }
-  console.log(`Container creato con ID: ${creationId}. In attesa di 3 secondi...`);
-
-  // --- PAUSA STRATEGICA PER LA STABILITÀ DELL'API ---
-  await new Promise(resolve => setTimeout(resolve, 3000)); // Attendi 3 secondi
+  console.log(`Container creato con ID: ${creationId}.`);
 
   // Step 2: Controllare lo stato del caricamento del container
   let status = 'IN_PROGRESS';
@@ -70,7 +70,7 @@ async function publishInstagramVideo(
     access_token: accessToken,
   });
 
-  const publishResponse = await fetch(`${publishUrl}`, { 
+  const publishResponse = await fetch(publishUrl, { 
       method: 'POST',
       body: publishParams
   });
@@ -87,7 +87,6 @@ async function publishInstagramVideo(
 
 // --- L'Handler principale per la richiesta GET del Cron Job ---
 export async function GET(request: NextRequest) {
-  // ... (Il resto del file rimane identico) ...
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new NextResponse('Unauthorized', { status: 401 });
