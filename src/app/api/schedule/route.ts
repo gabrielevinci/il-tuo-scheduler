@@ -2,10 +2,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { jwtVerify, JWTPayload } from 'jose';
+import { jwtVerify } from 'jose'; // -> Import corretto, senza JWTPayload
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
 
+// Definiamo un tipo per l'errore per soddisfare le regole di TypeScript
 interface ErrorWithCode extends Error {
   code?: string;
 }
