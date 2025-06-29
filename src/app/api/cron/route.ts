@@ -1,4 +1,4 @@
-// src/app/api/cron/route.ts -> VERSIONE FINALE CON ENDPOINT CORRETTI
+// src/app/api/cron/route.ts -> VERSIONE FINALE CON PAUSA STRATEGICA
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -10,7 +10,7 @@ async function publishInstagramVideo(
   videoUrl: string,
   caption: string
 ) {
-  // Step 1: Creare il container per il media (usando graph.instagram.com)
+  // Step 1: Creare il container per il media
   const createContainerUrl = `https://graph.instagram.com/${igUserId}/media`;
   const createContainerParams = new URLSearchParams({
     media_type: 'REELS',
@@ -23,7 +23,6 @@ async function publishInstagramVideo(
   const createData = await createResponse.json();
 
   if (!createResponse.ok) {
-    // Aggiungiamo un log più dettagliato
     console.error("Dettagli Errore Creazione Container:", createData);
     throw new Error(`Errore nella creazione del container: ${JSON.stringify(createData.error)}`);
   }
@@ -32,18 +31,20 @@ async function publishInstagramVideo(
   if (!creationId) {
     throw new Error('ID di creazione non ricevuto da Meta.');
   }
-  console.log(`Container creato con ID: ${creationId}`);
+  console.log(`Container creato con ID: ${creationId}. In attesa di 3 secondi...`);
+
+  // --- PAUSA STRATEGICA PER LA STABILITÀ DELL'API ---
+  await new Promise(resolve => setTimeout(resolve, 3000)); // Attendi 3 secondi
 
   // Step 2: Controllare lo stato del caricamento del container
   let status = 'IN_PROGRESS';
   let attempts = 0;
-  const maxAttempts = 12; // Attendi al massimo per un minuto (12 * 5 secondi)
+  const maxAttempts = 12;
 
   while (status === 'IN_PROGRESS' && attempts < maxAttempts) {
     console.log(`Controllo stato container... Tentativo ${attempts + 1}`);
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Attendi 5 secondi
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
-    // Anche questo controllo usa graph.instagram.com
     const statusUrl = `https://graph.instagram.com/${creationId}?fields=status_code&access_token=${accessToken}`;
     const statusResponse = await fetch(statusUrl);
     const statusData = await statusResponse.json();
@@ -62,7 +63,7 @@ async function publishInstagramVideo(
   
   console.log('Container pronto per la pubblicazione.');
 
-  // Step 3: Pubblicare il container (usando graph.instagram.com)
+  // Step 3: Pubblicare il container
   const publishUrl = `https://graph.instagram.com/${igUserId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: creationId,
@@ -86,6 +87,7 @@ async function publishInstagramVideo(
 
 // --- L'Handler principale per la richiesta GET del Cron Job ---
 export async function GET(request: NextRequest) {
+  // ... (Il resto del file rimane identico) ...
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new NextResponse('Unauthorized', { status: 401 });
