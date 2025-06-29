@@ -1,4 +1,4 @@
-// src/app/api/cron/route.ts -> VERSIONE FINALE CON WORKAROUND (ID - 1)
+// src/app/api/cron/route.ts -> VERSIONE FINALE CON API VERSION CONFIGURABILE
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
@@ -9,14 +9,11 @@ async function publishInstagramVideo(
   videoUrl: string,
   caption: string
 ) {
-  // --- WORKAROUND ANOMALO ---
-  // Convertiamo l'ID in un BigInt per eseguire la sottrazione in modo sicuro
-  // e poi lo riconvertiamo in stringa per l'API.
-  const correctedIgUserId = (BigInt(igUserId) - BigInt(1)).toString();
-  console.log(`Applicato workaround: ID originale ${igUserId}, ID corretto inviato ${correctedIgUserId}`);
+  // Usiamo la versione dell'API dalle variabili d'ambiente
+  const apiVersion = process.env.META_API_VERSION || 'v20.0'; // Fallback a v20.0 per sicurezza
 
-  // Step 1: Creare il container usando l'ID corretto
-  const createContainerUrl = `https://graph.instagram.com/${correctedIgUserId}/video_reels`;
+  // Step 1: Creare il container
+  const createContainerUrl = `https://graph.instagram.com/${apiVersion}/${igUserId}/video_reels`;
   const createContainerParams = new URLSearchParams({
     media_type: 'REELS',
     video_url: videoUrl,
@@ -26,25 +23,29 @@ async function publishInstagramVideo(
 
   const createResponse = await fetch(createContainerUrl, { method: 'POST', body: createContainerParams });
   const createData = await createResponse.json();
+
   if (!createResponse.ok) {
     console.error("Dettagli Errore Creazione Container:", createData);
     throw new Error(`Errore nella creazione del container: ${JSON.stringify(createData.error)}`);
   }
+
   const creationId = createData.id;
   if (!creationId) throw new Error('ID di creazione non ricevuto da Meta.');
   console.log(`Container creato con ID: ${creationId}.`);
 
-  // Step 2: Controllare lo stato (la logica rimane invariata)
+  // Step 2: Controllare lo stato
   let status = 'IN_PROGRESS';
   let attempts = 0;
   const maxAttempts = 12;
   while (status === 'IN_PROGRESS' && attempts < maxAttempts) {
     console.log(`Controllo stato container... Tentativo ${attempts + 1}`);
     await new Promise(resolve => setTimeout(resolve, 5000));
-    const statusUrl = `https://graph.instagram.com/${creationId}?fields=status_code&access_token=${accessToken}`;
+    
+    const statusUrl = `https://graph.instagram.com/${apiVersion}/${creationId}?fields=status_code&access_token=${accessToken}`;
     const statusResponse = await fetch(statusUrl);
     const statusData = await statusResponse.json();
     status = statusData.status_code;
+
     if (status === 'ERROR') {
       console.error("Dettagli Errore Stato Container:", statusData);
       throw new Error(`Errore durante il caricamento del media: ${JSON.stringify(statusData)}`);
@@ -54,8 +55,8 @@ async function publishInstagramVideo(
   if (status !== 'FINISHED') throw new Error(`Timeout: Il container non è passato allo stato FINISHED.`);
   console.log('Container pronto per la pubblicazione.');
 
-  // Step 3: Pubblicare il container usando l'ID corretto
-  const publishUrl = `https://graph.instagram.com/${correctedIgUserId}/media_publish`;
+  // Step 3: Pubblicare il container
+  const publishUrl = `https://graph.instagram.com/${apiVersion}/${igUserId}/media_publish`;
   const publishParams = new URLSearchParams({
     creation_id: creationId,
     access_token: accessToken,
